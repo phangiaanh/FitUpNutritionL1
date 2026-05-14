@@ -75,7 +75,7 @@ def validate_yolo_labels(
                     raise ValueError(
                         f"[{split}] {lbl_path.name}:{line_idx}: class id not an integer "
                         f"({fields[0]!r})"
-                    )
+                    ) from None
                 if cls < 0 or cls >= nc:
                     raise ValueError(
                         f"[{split}] {lbl_path.name}:{line_idx}: class id {cls} out of "
@@ -87,7 +87,7 @@ def validate_yolo_labels(
                     raise ValueError(
                         f"[{split}] {lbl_path.name}:{line_idx}: non-numeric coord in "
                         f"{fields[1:]}"
-                    )
+                    ) from None
                 for c in coords:
                     if c < 0.0 or c > 1.0:
                         raise ValueError(

@@ -106,5 +106,14 @@ class ValidateYoloLabelsTests(unittest.TestCase):
                 validate_yolo_labels(root, CLASSES)
 
 
+    def test_raises_on_missing_split_dir(self) -> None:
+        with TemporaryDirectory() as td:
+            root = Path(td)
+            # only create train, not val/test
+            _make_split(root, "train", [("a", "0 0.5 0.5 0.5 0.5\n")])
+            with self.assertRaisesRegex(ValueError, "missing image dir"):
+                validate_yolo_labels(root, CLASSES)
+
+
 if __name__ == "__main__":
     unittest.main()
