@@ -156,6 +156,32 @@ print("Config OK. Run name:", RUN_NAME)"""
     ))
     cells.append(code(helpers_source.rstrip()))
 
+    # Cell: dataset download + extract + data.yaml
+    cells.append(markdown("### Dataset: download tars from HF, extract, write data.yaml"))
+    cells.append(code(
+        r"""snapshot_download(
+    repo_id=HF_DATASET_REPO,
+    repo_type="dataset",
+    local_dir=HF_CACHE,
+)
+
+extract_dataset_tars(HF_CACHE, DATA_DIR, force=FORCE_REDOWNLOAD)
+yaml_path = write_data_yaml(DATA_DIR, L1_CLASSES)
+print("data.yaml ->", yaml_path)
+
+for split in ("train", "val", "test"):
+    imgs = list((Path(DATA_DIR) / "images" / split).glob("*"))
+    print(f"  {split}: {len(imgs)} images")"""
+    ))
+
+    # Cell: pre-flight label validation
+    cells.append(markdown(
+        "### Label validation\n\n"
+        "Fails loudly if any `.txt` is malformed or if there are orphan "
+        "images/labels. Run this **before** training."
+    ))
+    cells.append(code("validate_yolo_labels(DATA_DIR, L1_CLASSES)"))
+
     return cells
 
 

@@ -29,7 +29,7 @@ class NotebookGenerationTests(unittest.TestCase):
             doc = json.loads(out_path.read_text())
             self.assertEqual(doc["nbformat"], 4)
             self.assertIn("cells", doc)
-            self.assertEqual(len(doc["cells"]), 7)
+            self.assertEqual(len(doc["cells"]), 11)
 
     def test_every_code_cell_parses_as_python(self) -> None:
         with TemporaryDirectory() as td:
@@ -50,6 +50,29 @@ class NotebookGenerationTests(unittest.TestCase):
                     ast.parse(src)
                 except SyntaxError as e:
                     self.fail(f"cell {i} failed to parse: {e}\n--- source ---\n{src}")
+
+
+class DatasetCellTests(unittest.TestCase):
+    def _sources(self) -> list[str]:
+        with TemporaryDirectory() as td:
+            out_path = Path(td) / "out.ipynb"
+            subprocess.run(
+                [sys.executable, str(GEN_SCRIPT), "--out", str(out_path)],
+                check=True,
+            )
+            doc = json.loads(out_path.read_text())
+            return ["".join(c["source"]) for c in doc["cells"]]
+
+    def test_dataset_cell_present(self) -> None:
+        srcs = self._sources()
+        joined = "\n".join(srcs)
+        self.assertIn("snapshot_download", joined)
+        self.assertIn("extract_dataset_tars", joined)
+        self.assertIn("write_data_yaml", joined)
+
+    def test_label_validation_cell_present(self) -> None:
+        joined = "\n".join(self._sources())
+        self.assertIn("validate_yolo_labels", joined)
 
 
 if __name__ == "__main__":
