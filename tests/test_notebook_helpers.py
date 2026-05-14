@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import io
 import sys
+import tarfile
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -115,8 +117,6 @@ class ValidateYoloLabelsTests(unittest.TestCase):
                 validate_yolo_labels(root, CLASSES)
 
 
-import tarfile
-
 from scripts.notebook_helpers import extract_dataset_tars  # noqa: E402
 
 
@@ -127,7 +127,6 @@ def _make_tar(tar_path: Path, files: dict[str, bytes]) -> None:
         for arcname, data in files.items():
             info = tarfile.TarInfo(name=arcname)
             info.size = len(data)
-            import io
             tar.addfile(info, io.BytesIO(data))
 
 

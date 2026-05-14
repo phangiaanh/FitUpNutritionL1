@@ -7,6 +7,7 @@ notebook cell so the notebook stays self-contained when run in Colab.
 
 from __future__ import annotations
 
+import tarfile
 from pathlib import Path
 from typing import Iterable
 
@@ -100,9 +101,6 @@ def validate_yolo_labels(
         print(f"[{split}] files={len(lbl_stems)} boxes={total_boxes}")
         for i, name in enumerate(class_names):
             print(f"  {i} {name}: {per_class[i]}")
-
-
-import tarfile
 
 
 def extract_dataset_tars(hf_cache, data_dir, force: bool = False) -> None:
