@@ -29,7 +29,7 @@ class NotebookGenerationTests(unittest.TestCase):
             doc = json.loads(out_path.read_text())
             self.assertEqual(doc["nbformat"], 4)
             self.assertIn("cells", doc)
-            self.assertGreater(len(doc["cells"]), 0)
+            self.assertEqual(len(doc["cells"]), 7)
 
     def test_every_code_cell_parses_as_python(self) -> None:
         with TemporaryDirectory() as td:
