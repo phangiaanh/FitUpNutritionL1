@@ -28,14 +28,13 @@ CLASSES = [
 
 
 def _make_split(root: Path, split: str, pairs: list[tuple[str, str]]) -> None:
-    """pairs is a list of (image_basename, label_text). Image is touched (empty file)."""
-    img_dir = root / "images" / split
-    lbl_dir = root / "labels" / split
-    img_dir.mkdir(parents=True, exist_ok=True)
-    lbl_dir.mkdir(parents=True, exist_ok=True)
+    """pairs is a list of (image_basename, label_text). Images and labels are
+    co-located under root/<split>/."""
+    split_dir = root / split
+    split_dir.mkdir(parents=True, exist_ok=True)
     for base, lbl_text in pairs:
-        (img_dir / f"{base}.jpg").write_bytes(b"")
-        (lbl_dir / f"{base}.txt").write_text(lbl_text)
+        (split_dir / f"{base}.jpg").write_bytes(b"")
+        (split_dir / f"{base}.txt").write_text(lbl_text)
 
 
 class ValidateYoloLabelsTests(unittest.TestCase):
@@ -91,7 +90,7 @@ class ValidateYoloLabelsTests(unittest.TestCase):
             root = Path(td)
             _make_split(root, "train", [("a", "0 0.5 0.5 0.5 0.5\n")])
             # Add an orphan image without label
-            (root / "images" / "train" / "orphan.jpg").write_bytes(b"")
+            (root / "train" / "orphan.jpg").write_bytes(b"")
             _make_split(root, "val", [("c", "0 0.5 0.5 0.5 0.5\n")])
             _make_split(root, "test", [("d", "0 0.5 0.5 0.5 0.5\n")])
             with self.assertRaisesRegex(ValueError, "orphan"):
@@ -101,7 +100,7 @@ class ValidateYoloLabelsTests(unittest.TestCase):
         with TemporaryDirectory() as td:
             root = Path(td)
             _make_split(root, "train", [("a", "0 0.5 0.5 0.5 0.5\n")])
-            (root / "labels" / "train" / "ghost.txt").write_text("0 0.5 0.5 0.5 0.5\n")
+            (root / "train" / "ghost.txt").write_text("0 0.5 0.5 0.5 0.5\n")
             _make_split(root, "val", [("c", "0 0.5 0.5 0.5 0.5\n")])
             _make_split(root, "test", [("d", "0 0.5 0.5 0.5 0.5\n")])
             with self.assertRaisesRegex(ValueError, "ghost"):
@@ -113,7 +112,7 @@ class ValidateYoloLabelsTests(unittest.TestCase):
             root = Path(td)
             # only create train, not val/test
             _make_split(root, "train", [("a", "0 0.5 0.5 0.5 0.5\n")])
-            with self.assertRaisesRegex(ValueError, "missing image dir"):
+            with self.assertRaisesRegex(ValueError, "missing split dir"):
                 validate_yolo_labels(root, CLASSES)
 
 
@@ -136,18 +135,18 @@ class ExtractDatasetTarsTests(unittest.TestCase):
             hf_cache = Path(td) / "hf"
             data_dir = Path(td) / "data"
             _make_tar(hf_cache / "images.tar", {
-                "images/train/a.jpg": b"img",
-                "images/val/b.jpg": b"img",
-                "images/test/c.jpg": b"img",
+                "train/a.jpg": b"img",
+                "val/b.jpg": b"img",
+                "test/c.jpg": b"img",
             })
             _make_tar(hf_cache / "labels.tar", {
-                "labels/train/a.txt": b"0 0.5 0.5 0.5 0.5\n",
-                "labels/val/b.txt": b"0 0.5 0.5 0.5 0.5\n",
-                "labels/test/c.txt": b"0 0.5 0.5 0.5 0.5\n",
+                "train/a.txt": b"0 0.5 0.5 0.5 0.5\n",
+                "val/b.txt": b"0 0.5 0.5 0.5 0.5\n",
+                "test/c.txt": b"0 0.5 0.5 0.5 0.5\n",
             })
             extract_dataset_tars(hf_cache, data_dir)
-            self.assertTrue((data_dir / "images" / "train" / "a.jpg").is_file())
-            self.assertTrue((data_dir / "labels" / "val" / "b.txt").is_file())
+            self.assertTrue((data_dir / "train" / "a.jpg").is_file())
+            self.assertTrue((data_dir / "val" / "b.txt").is_file())
 
     def test_skips_when_already_extracted(self) -> None:
         with TemporaryDirectory() as td:
@@ -155,35 +154,32 @@ class ExtractDatasetTarsTests(unittest.TestCase):
             data_dir = Path(td) / "data"
             # Pre-populate the target tree so extraction should be skipped.
             for split in ("train", "val", "test"):
-                (data_dir / "images" / split).mkdir(parents=True)
-                (data_dir / "labels" / split).mkdir(parents=True)
-                (data_dir / "images" / split / "pre.jpg").write_bytes(b"")
-                (data_dir / "labels" / split / "pre.txt").write_bytes(b"")
+                (data_dir / split).mkdir(parents=True)
+                (data_dir / split / "pre.jpg").write_bytes(b"")
             # Note: no tars in hf_cache; the function must not look for them.
             hf_cache.mkdir()
             extract_dataset_tars(hf_cache, data_dir)  # must not raise
-            self.assertTrue((data_dir / "images" / "train" / "pre.jpg").is_file())
+            self.assertTrue((data_dir / "train" / "pre.jpg").is_file())
 
     def test_force_re_extracts(self) -> None:
         with TemporaryDirectory() as td:
             hf_cache = Path(td) / "hf"
             data_dir = Path(td) / "data"
             for split in ("train", "val", "test"):
-                (data_dir / "images" / split).mkdir(parents=True)
-                (data_dir / "labels" / split).mkdir(parents=True)
-                (data_dir / "images" / split / "stale.jpg").write_bytes(b"old")
+                (data_dir / split).mkdir(parents=True)
+                (data_dir / split / "stale.jpg").write_bytes(b"old")
             _make_tar(hf_cache / "images.tar", {
-                "images/train/fresh.jpg": b"new",
-                "images/val/fresh.jpg": b"new",
-                "images/test/fresh.jpg": b"new",
+                "train/fresh.jpg": b"new",
+                "val/fresh.jpg": b"new",
+                "test/fresh.jpg": b"new",
             })
             _make_tar(hf_cache / "labels.tar", {
-                "labels/train/fresh.txt": b"0 0.5 0.5 0.5 0.5\n",
-                "labels/val/fresh.txt": b"0 0.5 0.5 0.5 0.5\n",
-                "labels/test/fresh.txt": b"0 0.5 0.5 0.5 0.5\n",
+                "train/fresh.txt": b"0 0.5 0.5 0.5 0.5\n",
+                "val/fresh.txt": b"0 0.5 0.5 0.5 0.5\n",
+                "test/fresh.txt": b"0 0.5 0.5 0.5 0.5\n",
             })
             extract_dataset_tars(hf_cache, data_dir, force=True)
-            self.assertTrue((data_dir / "images" / "train" / "fresh.jpg").is_file())
+            self.assertTrue((data_dir / "train" / "fresh.jpg").is_file())
 
     def test_raises_if_tar_missing(self) -> None:
         with TemporaryDirectory() as td:
@@ -207,9 +203,9 @@ class WriteDataYamlTests(unittest.TestCase):
             self.assertEqual(out, data_dir / "data.yaml")
             doc = _yaml.safe_load(out.read_text())
             self.assertEqual(doc["path"], str(data_dir))
-            self.assertEqual(doc["train"], "images/train")
-            self.assertEqual(doc["val"], "images/val")
-            self.assertEqual(doc["test"], "images/test")
+            self.assertEqual(doc["train"], "train")
+            self.assertEqual(doc["val"], "val")
+            self.assertEqual(doc["test"], "test")
             self.assertEqual(doc["nc"], 8)
             self.assertEqual(doc["names"], CLASSES)
 

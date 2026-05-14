@@ -21,34 +21,32 @@ def validate_yolo_labels(
     class_names: list[str],
     splits: Iterable[str] = ("train", "val", "test"),
 ) -> None:
-    """Walk every YOLO label file under data_dir/labels/<split>/ and assert
+    """Walk every YOLO label file under data_dir/<split>/ and assert
     well-formedness. Raises ValueError on the first violation.
 
     On success, prints a per-split summary: file count, total boxes, and a
     boxes-per-class histogram.
 
+    Images and labels are co-located under data_dir/<split>/.
     A `.txt` file may be empty (image with no objects). Non-empty files must
     have lines of exactly 5 whitespace-separated fields:
         class_id  cx  cy  w  h
     where class_id is an integer in [0, len(class_names)-1] and cx/cy/w/h are
     floats in [0.0, 1.0].
 
-    Every image in images/<split>/ must have a matching basename .txt in
-    labels/<split>/ and vice versa.
+    Every image in <split>/ must have a matching basename .txt in the same
+    directory and vice versa.
     """
     data_dir = Path(data_dir)
     nc = len(class_names)
 
     for split in splits:
-        img_dir = data_dir / "images" / split
-        lbl_dir = data_dir / "labels" / split
-        if not img_dir.is_dir():
-            raise ValueError(f"missing image dir: {img_dir}")
-        if not lbl_dir.is_dir():
-            raise ValueError(f"missing label dir: {lbl_dir}")
+        split_dir = data_dir / split
+        if not split_dir.is_dir():
+            raise ValueError(f"missing split dir: {split_dir}")
 
-        img_stems = {p.stem for p in img_dir.iterdir() if p.suffix.lower() in IMAGE_EXTS}
-        lbl_stems = {p.stem for p in lbl_dir.iterdir() if p.suffix.lower() == ".txt"}
+        img_stems = {p.stem for p in split_dir.iterdir() if p.suffix.lower() in IMAGE_EXTS}
+        lbl_stems = {p.stem for p in split_dir.iterdir() if p.suffix.lower() == ".txt"}
 
         orphans = sorted(img_stems - lbl_stems)
         ghosts = sorted(lbl_stems - img_stems)
@@ -59,7 +57,7 @@ def validate_yolo_labels(
 
         per_class = [0] * nc
         total_boxes = 0
-        for lbl_path in sorted(lbl_dir.glob("*.txt")):
+        for lbl_path in sorted(split_dir.glob("*.txt")):
             text = lbl_path.read_text().strip()
             if not text:
                 continue
@@ -108,13 +106,14 @@ def validate_yolo_labels(
 def extract_dataset_tars(hf_cache, data_dir, force: bool = False) -> None:
     """Extract images.tar and labels.tar from hf_cache into data_dir.
 
-    Expected resulting tree:
+    Expected resulting tree (images and labels co-located per split):
         data_dir/
-          images/{train,val,test}/...
-          labels/{train,val,test}/...
+          train/  <images + .txt labels>
+          val/    <images + .txt labels>
+          test/   <images + .txt labels>
 
     If `force` is False and the target tree already exists with at least one
-    file in each of the six split dirs, extraction is skipped.
+    file in each of the three split dirs, extraction is skipped.
 
     Raises FileNotFoundError if a required tar is missing and extraction
     actually needs to happen.
@@ -125,13 +124,12 @@ def extract_dataset_tars(hf_cache, data_dir, force: bool = False) -> None:
     splits = ("train", "val", "test")
 
     def already_populated() -> bool:
-        for kind in ("images", "labels"):
-            for split in splits:
-                d = data_dir / kind / split
-                if not d.is_dir():
-                    return False
-                if not any(d.iterdir()):
-                    return False
+        for split in splits:
+            d = data_dir / split
+            if not d.is_dir():
+                return False
+            if not any(d.iterdir()):
+                return False
         return True
 
     if not force and already_populated():
@@ -156,14 +154,15 @@ def write_data_yaml(data_dir, class_names: list[str]) -> Path:
     """Write Ultralytics data.yaml under data_dir. Returns the Path written.
 
     Overwrites any existing file at that location.
+    Images and labels are co-located, so split paths are just the split name.
     """
     data_dir = Path(data_dir)
     out = data_dir / "data.yaml"
     doc = {
         "path": str(data_dir),
-        "train": "images/train",
-        "val": "images/val",
-        "test": "images/test",
+        "train": "train",
+        "val": "val",
+        "test": "test",
         "nc": len(class_names),
         "names": list(class_names),
     }
