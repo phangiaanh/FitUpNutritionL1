@@ -100,3 +100,53 @@ def validate_yolo_labels(
         print(f"[{split}] files={len(lbl_stems)} boxes={total_boxes}")
         for i, name in enumerate(class_names):
             print(f"  {i} {name}: {per_class[i]}")
+
+
+import tarfile
+
+
+def extract_dataset_tars(hf_cache, data_dir, force: bool = False) -> None:
+    """Extract images.tar and labels.tar from hf_cache into data_dir.
+
+    Expected resulting tree:
+        data_dir/
+          images/{train,val,test}/...
+          labels/{train,val,test}/...
+
+    If `force` is False and the target tree already exists with at least one
+    file in each of the six split dirs, extraction is skipped.
+
+    Raises FileNotFoundError if a required tar is missing and extraction
+    actually needs to happen.
+    """
+    hf_cache = Path(hf_cache)
+    data_dir = Path(data_dir)
+
+    splits = ("train", "val", "test")
+
+    def already_populated() -> bool:
+        for kind in ("images", "labels"):
+            for split in splits:
+                d = data_dir / kind / split
+                if not d.is_dir():
+                    return False
+                if not any(d.iterdir()):
+                    return False
+        return True
+
+    if not force and already_populated():
+        print(f"[extract] {data_dir} already populated, skipping")
+        return
+
+    images_tar = hf_cache / "images.tar"
+    labels_tar = hf_cache / "labels.tar"
+    if not images_tar.is_file():
+        raise FileNotFoundError(f"images.tar not found under {hf_cache}")
+    if not labels_tar.is_file():
+        raise FileNotFoundError(f"labels.tar not found under {hf_cache}")
+
+    data_dir.mkdir(parents=True, exist_ok=True)
+    for tar_path in (images_tar, labels_tar):
+        print(f"[extract] {tar_path.name} -> {data_dir}")
+        with tarfile.open(tar_path, "r") as tar:
+            tar.extractall(data_dir, filter="data")
