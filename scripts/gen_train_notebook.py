@@ -219,6 +219,37 @@ model.train(
 )"""
     ))
 
+    # Cell: evaluate on test split
+    cells.append(markdown(
+        "### Evaluate on test split\n\n"
+        "Reports overall mAP50, mAP50-95, precision, recall, and per-class AP. "
+        "Plots (`confusion_matrix.png`, `PR_curve.png`, `F1_curve.png`, "
+        "`results.csv`) auto-save under `RUNS_DIR/RUN_NAME/`."
+    ))
+    cells.append(code(
+        r"""BEST_PT = os.path.join(RUNS_DIR, RUN_NAME, "weights", "best.pt")
+if not os.path.isfile(BEST_PT):
+    raise FileNotFoundError(f"best.pt not found at {BEST_PT} - did training finish?")
+
+best_model = YOLO(BEST_PT)
+metrics = best_model.val(
+    data=DATA_YAML,
+    split="test",
+    imgsz=IMG_SIZE,
+    batch=BATCH,
+)
+
+print(f"\nmAP50      = {metrics.box.map50:.4f}")
+print(f"mAP50-95   = {metrics.box.map:.4f}")
+print(f"precision  = {metrics.box.mp:.4f}")
+print(f"recall     = {metrics.box.mr:.4f}")
+
+print("\nPer-class AP@0.5:")
+for i, name in enumerate(L1_CLASSES):
+    ap50 = metrics.box.ap50[i] if i < len(metrics.box.ap50) else float("nan")
+    print(f"  {i} {name}: {ap50:.4f}")"""
+    ))
+
     return cells
 
 
