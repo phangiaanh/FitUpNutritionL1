@@ -159,11 +159,14 @@ print("Config OK. Run name:", RUN_NAME)"""
     # Cell: dataset download + extract + data.yaml
     cells.append(markdown("### Dataset: download tars from HF, extract, write data.yaml"))
     cells.append(code(
-        r"""snapshot_download(
-    repo_id=HF_DATASET_REPO,
-    repo_type="dataset",
-    local_dir=HF_CACHE,
-)
+        r"""if FORCE_REDOWNLOAD or not (Path(HF_CACHE) / "images.tar").is_file():
+    snapshot_download(
+        repo_id=HF_DATASET_REPO,
+        repo_type="dataset",
+        local_dir=HF_CACHE,
+    )
+else:
+    print(f"[download] HF cache at {HF_CACHE} already populated, skipping.")
 
 extract_dataset_tars(HF_CACHE, DATA_DIR, force=FORCE_REDOWNLOAD)
 yaml_path = write_data_yaml(DATA_DIR, L1_CLASSES)
@@ -196,11 +199,11 @@ LAST_PT = os.path.join(RUNS_DIR, RUN_NAME, "weights", "last.pt")
 if os.path.isfile(LAST_PT):
     print(f"Resuming from {LAST_PT}")
     model = YOLO(LAST_PT)
-    resume=True
+    resume = True
 else:
     print("Starting fresh from yolo11s.pt")
     model = YOLO("yolo11s.pt")
-    resume=False
+    resume = False
 
 model.train(
     data=DATA_YAML,

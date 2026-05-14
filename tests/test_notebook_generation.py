@@ -101,7 +101,7 @@ class TrainingCellTests(unittest.TestCase):
     def test_resume_logic_present(self) -> None:
         joined = "\n".join(self._sources())
         self.assertIn("last.pt", joined)
-        self.assertIn("resume=True", joined)
+        self.assertIn("resume = True", joined)
 
     def test_eval_cell_present(self) -> None:
         joined = "\n".join(self._sources())
