@@ -11,6 +11,8 @@ import tarfile
 from pathlib import Path
 from typing import Iterable
 
+import yaml
+
 IMAGE_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff"}
 
 
@@ -148,3 +150,22 @@ def extract_dataset_tars(hf_cache, data_dir, force: bool = False) -> None:
         print(f"[extract] {tar_path.name} -> {data_dir}")
         with tarfile.open(tar_path, "r") as tar:
             tar.extractall(data_dir, filter="data")
+
+
+def write_data_yaml(data_dir, class_names: list[str]) -> Path:
+    """Write Ultralytics data.yaml under data_dir. Returns the Path written.
+
+    Overwrites any existing file at that location.
+    """
+    data_dir = Path(data_dir)
+    out = data_dir / "data.yaml"
+    doc = {
+        "path": str(data_dir),
+        "train": "images/train",
+        "val": "images/val",
+        "test": "images/test",
+        "nc": len(class_names),
+        "names": list(class_names),
+    }
+    out.write_text(yaml.safe_dump(doc, sort_keys=False))
+    return out

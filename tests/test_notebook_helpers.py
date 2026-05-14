@@ -194,5 +194,33 @@ class ExtractDatasetTarsTests(unittest.TestCase):
                 extract_dataset_tars(hf_cache, data_dir)
 
 
+import yaml as _yaml
+
+from scripts.notebook_helpers import write_data_yaml  # noqa: E402
+
+
+class WriteDataYamlTests(unittest.TestCase):
+    def test_writes_expected_yaml(self) -> None:
+        with TemporaryDirectory() as td:
+            data_dir = Path(td)
+            out = write_data_yaml(data_dir, CLASSES)
+            self.assertEqual(out, data_dir / "data.yaml")
+            doc = _yaml.safe_load(out.read_text())
+            self.assertEqual(doc["path"], str(data_dir))
+            self.assertEqual(doc["train"], "images/train")
+            self.assertEqual(doc["val"], "images/val")
+            self.assertEqual(doc["test"], "images/test")
+            self.assertEqual(doc["nc"], 8)
+            self.assertEqual(doc["names"], CLASSES)
+
+    def test_overwrites_existing(self) -> None:
+        with TemporaryDirectory() as td:
+            data_dir = Path(td)
+            (data_dir / "data.yaml").write_text("garbage: true\n")
+            write_data_yaml(data_dir, CLASSES)
+            doc = _yaml.safe_load((data_dir / "data.yaml").read_text())
+            self.assertEqual(doc["nc"], 8)
+
+
 if __name__ == "__main__":
     unittest.main()
