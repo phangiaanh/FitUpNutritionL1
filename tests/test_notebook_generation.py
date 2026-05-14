@@ -29,7 +29,7 @@ class NotebookGenerationTests(unittest.TestCase):
             doc = json.loads(out_path.read_text())
             self.assertEqual(doc["nbformat"], 4)
             self.assertIn("cells", doc)
-            self.assertEqual(len(doc["cells"]), 11)
+            self.assertEqual(len(doc["cells"]), 13)
 
     def test_every_code_cell_parses_as_python(self) -> None:
         with TemporaryDirectory() as td:
@@ -73,6 +73,35 @@ class DatasetCellTests(unittest.TestCase):
     def test_label_validation_cell_present(self) -> None:
         joined = "\n".join(self._sources())
         self.assertIn("validate_yolo_labels", joined)
+
+
+class TrainingCellTests(unittest.TestCase):
+    def _sources(self) -> list[str]:
+        with TemporaryDirectory() as td:
+            out_path = Path(td) / "out.ipynb"
+            subprocess.run(
+                [sys.executable, str(GEN_SCRIPT), "--out", str(out_path)],
+                check=True,
+            )
+            doc = json.loads(out_path.read_text())
+            return ["".join(c["source"]) for c in doc["cells"]]
+
+    def test_training_cell_uses_yolo11s_and_a100_params(self) -> None:
+        joined = "\n".join(self._sources())
+        self.assertIn("YOLO(\"yolo11s.pt\")", joined)
+        self.assertIn("model.train(", joined)
+        self.assertIn("data=DATA_YAML", joined)
+        self.assertIn("imgsz=IMG_SIZE", joined)
+        self.assertIn("epochs=EPOCHS", joined)
+        self.assertIn("batch=BATCH", joined)
+        self.assertIn("patience=PATIENCE", joined)
+        self.assertIn("project=RUNS_DIR", joined)
+        self.assertIn("name=RUN_NAME", joined)
+
+    def test_resume_logic_present(self) -> None:
+        joined = "\n".join(self._sources())
+        self.assertIn("last.pt", joined)
+        self.assertIn("resume=True", joined)
 
 
 if __name__ == "__main__":

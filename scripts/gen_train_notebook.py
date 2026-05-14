@@ -182,6 +182,43 @@ for split in ("train", "val", "test"):
     ))
     cells.append(code("validate_yolo_labels(DATA_DIR, L1_CLASSES)"))
 
+    # Cell: training (with resume detection)
+    cells.append(markdown(
+        "### Train\n\n"
+        "Single-stage fine-tune from COCO-pretrained `yolo11s.pt`. "
+        "If a previous run was interrupted, the last checkpoint on Drive is "
+        "resumed automatically."
+    ))
+    cells.append(code(
+        r"""from ultralytics import YOLO
+
+LAST_PT = os.path.join(RUNS_DIR, RUN_NAME, "weights", "last.pt")
+if os.path.isfile(LAST_PT):
+    print(f"Resuming from {LAST_PT}")
+    model = YOLO(LAST_PT)
+    resume=True
+else:
+    print("Starting fresh from yolo11s.pt")
+    model = YOLO("yolo11s.pt")
+    resume=False
+
+model.train(
+    data=DATA_YAML,
+    imgsz=IMG_SIZE,
+    epochs=EPOCHS,
+    batch=BATCH,
+    patience=PATIENCE,
+    workers=WORKERS,
+    cache=CACHE,
+    amp=AMP,
+    device=0,
+    project=RUNS_DIR,
+    name=RUN_NAME,
+    exist_ok=True,
+    resume=resume,
+)"""
+    ))
+
     return cells
 
 
