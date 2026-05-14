@@ -1,47 +1,78 @@
-# FitUpNutrition L1 — Food scene classifier training
+# FitUpNutrition L1 - Food scene detector training
 
-Train an **EfficientNet-B4** multi-label classifier (8 L1 categories) following the methodology in `TRAINING_GUIDE.md`. The Colab notebook loads data from Hugging Face and saves checkpoints to **Google Drive** so runs survive disconnects.
+Train a **YOLO11s** object detector on 8 L1 food categories. The Colab notebook
+loads data from Hugging Face and saves checkpoints + TFLite exports to
+**Google Drive** so runs survive disconnects.
 
 ## Dataset on Hugging Face
 
-Upload `train/`, `val/`, and `test/` to the datasets repo **`WatermelonAnh/FoodClassifierL1`** (see [HF dataset page](https://huggingface.co/datasets/WatermelonAnh/FoodClassifierL1)) with folder-per-class layout:
+Repo **`WatermelonAnh/FoodClassifierL1`** ([HF dataset page](https://huggingface.co/datasets/WatermelonAnh/FoodClassifierL1))
+holds two tar archives:
 
 ```
 FoodClassifierL1/
-  train/
-    noodle_dish/
-    rice_dish/
-    ...
-  val/
-    ...
-  test/
-    ...
+  images.tar     -> images/{train,val,test}/<basename>.<ext>
+  labels.tar     -> labels/{train,val,test}/<basename>.txt
 ```
+
+Labels follow the **YOLO standard**: one line per box,
+`class_id cx cy w h` with coordinates normalized to `[0.0, 1.0]` and
+`class_id` an integer in `[0, 7]`.
+
+Classes (fixed order, index 0..7):
+`noodle_dish`, `rice_dish`, `soup_stew`, `grilled_fried`, `banh_bread`,
+`beverage`, `fruit`, `dessert_snack`.
 
 ## Colab notebook
 
-Open or upload [`notebooks/train_l1_efficientnetb4.ipynb`](notebooks/train_l1_efficientnetb4.ipynb):
+Open or upload [`notebooks/train_l1_yolo11s.ipynb`](notebooks/train_l1_yolo11s.ipynb):
 
-1. **Runtime → GPU** (T4 or better recommended).
+1. **Runtime → GPU** (A100 recommended; the defaults assume A100 80GB).
 2. Run **drive mount + Hugging Face login** cells (`HF_TOKEN` with read access for the dataset repo).
-3. Adjust `HF_DATASET_REPO`, `DRIVE_ROOT`, hyperparameters if needed (defaults match the guide: 224 resize, AdamW two-stage schedule).
-4. Checkpoints land under `{DRIVE_ROOT}/checkpoints/`:
-   - `latest.pt` — updated every epoch; used to resume (`s1` / `s2` stage-aware).
-   - `stage1_best.pt` — best Stage 1 by validation micro-F1.
-   - `best.pt` — best Stage 2 (final deployable weights).
+3. Adjust hyperparameters if needed (defaults: `imgsz=640`, `epochs=100`,
+   `batch=64`, `patience=30`, `cache="ram"`).
+4. Artifacts land under `/content/drive/MyDrive/FitUpNutritionL1/`:
+   - `runs/l1_yolo11s/weights/best.pt` — best validation checkpoint.
+   - `runs/l1_yolo11s/weights/last.pt` — most recent epoch (used to resume).
+   - `runs/l1_yolo11s/results.csv`, `confusion_matrix.png`, `PR_curve.png`, `F1_curve.png` — training plots.
+   - `exports/best_int8.tflite` — INT8 quantized TFLite (~6 MB, primary mobile artifact).
+   - `exports/best_float16.tflite` — FP16 TFLite (~22 MB, fallback).
+   - `exports/smoke_test.png` — annotated inference preview.
 
-After a Stage finishes successfully, `latest.pt` is removed so a full re-run moves to the next Stage without falsely resuming the previous stage.
+If a Colab session disconnects mid-run, just re-run the notebook: the train
+cell auto-detects `last.pt` on Drive and resumes.
 
-Notebook source-of-truth is [`scripts/gen_train_notebook.py`](scripts/gen_train_notebook.py). Regenerate the `.ipynb` after editing:
+Test-set evaluation reports mAP50, mAP50-95, precision, recall, and per-class
+AP. No micro-F1 (that was the old classifier).
+
+## Regenerating the notebook
+
+The notebook source-of-truth is [`scripts/gen_train_notebook.py`](scripts/gen_train_notebook.py).
+Helper functions (`validate_yolo_labels`, `extract_dataset_tars`,
+`write_data_yaml`) live in [`scripts/notebook_helpers.py`](scripts/notebook_helpers.py)
+and are embedded verbatim into one notebook cell so the notebook stays
+self-contained in Colab.
+
+Regenerate the `.ipynb` after editing either file:
 
 ```bash
 python3 scripts/gen_train_notebook.py
 ```
+
+## Tests
+
+```bash
+python -m unittest discover tests -v
+```
+
+Tests cover the helper functions (label validation, tar extraction, yaml
+emission) and the notebook generator (every code cell parses as Python,
+expected sections are present).
 
 ## Local dev (optional)
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-# Then port notebook logic to a script if needed — primary path is Colab.
+# Training itself runs on Colab; locally you can run the generator + tests.
 ```
