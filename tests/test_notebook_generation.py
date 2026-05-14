@@ -29,7 +29,7 @@ class NotebookGenerationTests(unittest.TestCase):
             doc = json.loads(out_path.read_text())
             self.assertEqual(doc["nbformat"], 4)
             self.assertIn("cells", doc)
-            self.assertEqual(len(doc["cells"]), 19)
+            self.assertEqual(len(doc["cells"]), 21)
 
     def test_every_code_cell_parses_as_python(self) -> None:
         with TemporaryDirectory() as td:
@@ -115,6 +115,12 @@ class TrainingCellTests(unittest.TestCase):
         self.assertIn("int8=True", joined)
         self.assertIn("half=True", joined)
         self.assertIn("EXPORTS_DIR", joined)
+
+    def test_smoke_test_cell_uses_tflite(self) -> None:
+        joined = "\n".join(self._sources())
+        self.assertIn("best_int8.tflite", joined)
+        self.assertIn("smoke_test.png", joined)
+        self.assertIn(".predict(", joined)
 
 
 if __name__ == "__main__":

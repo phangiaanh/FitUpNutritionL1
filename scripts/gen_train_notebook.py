@@ -285,6 +285,45 @@ shutil.copy(fp16_artifact, os.path.join(EXPORTS_DIR, "best_float16.tflite"))
 print("Copied to", os.path.join(EXPORTS_DIR, "best_float16.tflite"))"""
     ))
 
+    # Cell: inference smoke test against the INT8 TFLite artifact
+    cells.append(markdown(
+        "### Inference smoke test\n\n"
+        "Loads the INT8 TFLite (the actual deployment artifact), runs one "
+        "prediction on a random test image, and saves an annotated preview."
+    ))
+    cells.append(code(
+        r"""import random
+
+INT8_TFLITE = os.path.join(EXPORTS_DIR, "best_int8.tflite")
+test_imgs = sorted((Path(DATA_DIR) / "images" / "test").glob("*"))
+if not test_imgs:
+    raise RuntimeError("No test images found.")
+sample = random.choice(test_imgs)
+print("Smoke-testing on:", sample.name)
+
+deploy_model = YOLO(INT8_TFLITE)
+results = deploy_model.predict(
+    source=str(sample),
+    imgsz=IMG_SIZE,
+    conf=0.25,
+    save=False,
+)
+res = results[0]
+
+preview_path = os.path.join(EXPORTS_DIR, "smoke_test.png")
+res.save(filename=preview_path)
+print("Saved annotated preview to", preview_path)
+
+if res.boxes is None or len(res.boxes) == 0:
+    print("(no detections above conf=0.25)")
+else:
+    for box in res.boxes:
+        cls = int(box.cls.item())
+        conf = float(box.conf.item())
+        xyxy = [round(v, 1) for v in box.xyxy[0].tolist()]
+        print(f"  {L1_CLASSES[cls]}  conf={conf:.3f}  xyxy={xyxy}")"""
+    ))
+
     return cells
 
 
