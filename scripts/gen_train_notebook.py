@@ -250,6 +250,41 @@ for i, name in enumerate(L1_CLASSES):
     print(f"  {i} {name}: {ap50:.4f}")"""
     ))
 
+    # Cell: TFLite INT8 export (primary mobile artifact)
+    cells.append(markdown(
+        "### TFLite export - INT8 (primary)\n\n"
+        "Quantized to INT8 using calibration images sampled from the training "
+        "set. ~6 MB; preferred for the mobile app."
+    ))
+    cells.append(code(
+        r"""int8_artifact = best_model.export(
+    format="tflite",
+    int8=True,
+    imgsz=IMG_SIZE,
+    data=DATA_YAML,
+)
+print("INT8 TFLite ->", int8_artifact)
+shutil.copy(int8_artifact, os.path.join(EXPORTS_DIR, "best_int8.tflite"))
+print("Copied to", os.path.join(EXPORTS_DIR, "best_int8.tflite"))"""
+    ))
+
+    # Cell: TFLite FP16 export (fallback)
+    cells.append(markdown(
+        "### TFLite export - FP16 (fallback)\n\n"
+        "Half-precision fallback (~22 MB). Use if INT8 calibration causes "
+        "accuracy regressions on-device."
+    ))
+    cells.append(code(
+        r"""fp16_artifact = best_model.export(
+    format="tflite",
+    half=True,
+    imgsz=IMG_SIZE,
+)
+print("FP16 TFLite ->", fp16_artifact)
+shutil.copy(fp16_artifact, os.path.join(EXPORTS_DIR, "best_float16.tflite"))
+print("Copied to", os.path.join(EXPORTS_DIR, "best_float16.tflite"))"""
+    ))
+
     return cells
 
 
