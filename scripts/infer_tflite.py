@@ -26,38 +26,54 @@ CONF_THRES = 0.25
 IOU_THRES  = 0.45
 
 
+def letterbox(img: np.ndarray, new_shape: int = IMG_SIZE):
+    h0, w0 = img.shape[:2]
+    r = min(new_shape / h0, new_shape / w0)
+    new_w, new_h = round(w0 * r), round(h0 * r)
+    img_resized = cv2.resize(img, (new_w, new_h))
+    dw, dh = new_shape - new_w, new_shape - new_h
+    pad_left, pad_top = dw // 2, dh // 2
+    img_padded = cv2.copyMakeBorder(
+        img_resized,
+        pad_top, dh - pad_top, pad_left, dw - pad_left,
+        cv2.BORDER_CONSTANT, value=(114, 114, 114),
+    )
+    return img_padded, r, (pad_left, pad_top)
+
+
 def preprocess(img_path: str):
     img = cv2.imread(img_path)
     if img is None:
         raise FileNotFoundError(f"Cannot read image: {img_path}")
-    h0, w0 = img.shape[:2]
-    blob = cv2.resize(cv2.cvtColor(img, cv2.COLOR_BGR2RGB), (IMG_SIZE, IMG_SIZE))
-    blob = blob.astype(np.float32) / 255.0
-    return img, np.expand_dims(blob, 0), (h0, w0)
+    img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    img_lb, ratio, pad = letterbox(img_rgb, IMG_SIZE)
+    blob = img_lb.astype(np.float32) / 255.0
+    return img, np.expand_dims(blob, 0), ratio, pad
 
 
-def xywh2xyxy(boxes: np.ndarray, orig_shape):
-    h0, w0 = orig_shape
-    sx, sy = w0 / IMG_SIZE, h0 / IMG_SIZE
+def xywh2xyxy(boxes: np.ndarray, ratio: float, pad: tuple):
+    pad_left, pad_top = pad
     cx, cy, w, h = boxes[:, 0], boxes[:, 1], boxes[:, 2], boxes[:, 3]
     return np.stack([
-        (cx - w / 2) * sx, (cy - h / 2) * sy,
-        (cx + w / 2) * sx, (cy + h / 2) * sy,
+        (cx - w / 2 - pad_left) / ratio,
+        (cy - h / 2 - pad_top)  / ratio,
+        (cx + w / 2 - pad_left) / ratio,
+        (cy + h / 2 - pad_top)  / ratio,
     ], axis=1)
 
 
-def postprocess(raw: np.ndarray, orig_shape):
-    preds       = raw[0].T                  # [8400, 12]
+def postprocess(raw: np.ndarray, ratio: float, pad: tuple):
+    preds        = raw[0].T                  # [8400, 12]
     class_scores = preds[:, 4:]             # [8400, 8]
-    class_ids   = class_scores.argmax(1)
-    confs       = class_scores.max(1)
+    class_ids    = class_scores.argmax(1)
+    confs        = class_scores.max(1)
 
     mask = confs >= CONF_THRES
     preds, confs, class_ids = preds[mask], confs[mask], class_ids[mask]
     if len(preds) == 0:
         return []
 
-    boxes   = xywh2xyxy(preds[:, :4], orig_shape)
+    boxes = xywh2xyxy(preds[:, :4], ratio, pad)
     indices = cv2.dnn.NMSBoxes(
         boxes.tolist(), confs.tolist(), CONF_THRES, IOU_THRES
     )
@@ -103,8 +119,9 @@ def main():
     print(f"Output : {out_det['name']}  shape={out_det['shape']}  dtype={out_det['dtype'].__name__}")
 
     # Preprocess
-    img, blob, orig_shape = preprocess(args.image)
-    print(f"Image  : {args.image}  orig={orig_shape}")
+    img, blob, ratio, pad = preprocess(args.image)
+    h0, w0 = img.shape[:2]
+    print(f"Image  : {args.image}  orig=({h0},{w0})  ratio={ratio:.4f}  pad={pad}")
 
     # Quantize input if the model expects uint8
     if inp_det["dtype"] == np.uint8:
@@ -124,7 +141,7 @@ def main():
     print(f"Raw output shape: {raw.shape}")
 
     # Postprocess
-    detections = postprocess(raw, orig_shape)
+    detections = postprocess(raw, ratio, pad)
 
     if not detections:
         print("No detections above conf threshold.")
